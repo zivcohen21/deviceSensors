@@ -26,17 +26,18 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
         Intent intent = new Intent(this, SensorService.class);
-        bindService(intent, mConnection, Context.BIND_AUTO_CREATE);
+        startService(intent);
+        //bindService(intent, mConnection, Context.BIND_AUTO_CREATE);
     }
 
     @Override
     protected void onStop() {
         super.onStop();
-        unbindService(mConnection);
-        mBound = false;
+       /* unbindService(mConnection);
+        mBound = false;*/
     }
 
-    private ServiceConnection mConnection = new ServiceConnection() {
+  /*  private ServiceConnection mConnection = new ServiceConnection() {
 
         @Override
         public void onServiceConnected(ComponentName className,
@@ -52,6 +53,6 @@ public class MainActivity extends AppCompatActivity {
         public void onServiceDisconnected(ComponentName arg0) {
             mBound = false;
         }
-    };
+    };*/
 }
 
