@@ -1,14 +1,13 @@
 package com.example.ziv.devicesensors;
 
 import android.app.IntentService;
-import android.content.Context;
+import android.app.Service;
 import android.content.Intent;
 import android.hardware.Sensor;
 import android.hardware.SensorEvent;
-import android.hardware.SensorEventListener;
 import android.hardware.SensorManager;
-import android.os.Handler;
-import android.os.Trace;
+import android.os.Binder;
+import android.os.IBinder;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.util.Log;
@@ -16,6 +15,7 @@ import android.util.Log;
 import java.util.Objects;
 
 import io.realm.Realm;
+import io.realm.Sort;
 
 
 public class SensorService extends IntentService {
@@ -29,15 +29,12 @@ public class SensorService extends IntentService {
     int yaw;
     int pitch;
     int roll;
-    int index;
-    int oldestSampleIndex;
     int countSample;
 
+    //private final IBinder mBinder = new ServiceBinder();
+
     public SensorService() {
-        super("");
-    }
-    public SensorService(String name) {
-        super(name);
+        super("sensor_service");
     }
 
     @Override
@@ -48,20 +45,27 @@ public class SensorService extends IntentService {
             sensorEvtListener = new sensorEventListener();
             sensorManager.registerListener(sensorEvtListener, sensor, SensorManager.SENSOR_DELAY_NORMAL);
         }
-        countSample = 0;
-        index = 1;
-        oldestSampleIndex = 1;
-        Realm.init(this);
+
         realm = Realm.getDefaultInstance();
+        countSample =  realm.where(SensorSample.class).findAll().size();
+        Log.d("service", "size1 " + countSample);
+
+       /* while (checkSensor) {
+            try {
+                Thread.sleep(3000);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+            getSample();
+        }*/
 
         Runnable runnable = new Runnable() {
-        Thread thread;
             @Override
             public void run() {
 
                 while (checkSensor) {
                     try {
-                        Thread.sleep(300);
+                        Thread.sleep(3000);
                     } catch (InterruptedException e) {
                         e.printStackTrace();
                     }
@@ -72,8 +76,10 @@ public class SensorService extends IntentService {
         runnable.run();
     }
 
+
     private void getSample() {
 
+        Log.d("service", "size2 " + countSample);
         if(countSample > 500)
         {
             removeOldest();
@@ -83,36 +89,35 @@ public class SensorService extends IntentService {
 
     private void saveToDb()
     {
-        realm.executeTransaction(new Realm.Transaction() {
-            @Override
-            public void execute(@NonNull Realm realm) {
-                SensorSample sensorSample = realm.createObject(SensorSample.class);
-                sensorSample.setId(index++);
-                sensorSample.setDate();
-                sensorSample.setYaw(yaw);
-                sensorSample.setPitch(pitch);
-                sensorSample.setRoll(roll);
-                countSample++;
-            }
-        });
+        realm = Realm.getDefaultInstance();
+        SensorSample sensorSample = new SensorSample();
+        sensorSample.setDate();
+        sensorSample.setYaw(yaw);
+        sensorSample.setPitch(pitch);
+        sensorSample.setRoll(roll);
+
+        realm.beginTransaction();
+        realm.copyToRealm(sensorSample);
+        realm.commitTransaction();
+        countSample++;
+
     }
 
     private void removeOldest()
     {
-        realm.executeTransaction(new Realm.Transaction() {
-            @Override
-            public void execute(@NonNull Realm realm) {
-                Objects.requireNonNull(realm.where(SensorSample.class)
-                        .equalTo("id", oldestSampleIndex).findFirst()).deleteFromRealm();
-                countSample--;
-            }
-        });
+        realm.beginTransaction();
+        SensorSample sensorSample = realm.where(SensorSample.class).sort("date", Sort.ASCENDING).findFirst();
+        Objects.requireNonNull(sensorSample).deleteFromRealm();
+        realm.commitTransaction();
+        countSample--;
+        //Log.d("service", "size3 " + countSample);
     }
 
     class sensorEventListener implements android.hardware.SensorEventListener {
 
         @Override
         public void onSensorChanged(SensorEvent event) {
+
             if (event.sensor == sensor) {
                 if (event.values.length > 4) {
                     float[] truncatedRotationVector = new float[4];
@@ -122,7 +127,6 @@ public class SensorService extends IntentService {
                 else {
                     update(event.values);
                 }
-
             }
         }
 
@@ -132,6 +136,7 @@ public class SensorService extends IntentService {
         }
 
         private void update(float[] vectors) {
+
             float[] rotationMatrix = new float[9];
             SensorManager.getRotationMatrixFromVector(rotationMatrix, vectors);
             int worldAxisX = SensorManager.AXIS_X;
@@ -143,7 +148,73 @@ public class SensorService extends IntentService {
             yaw = Math.round(orientation[0] * FROM_RADS_TO_DEGS);
             pitch = Math.round(orientation[1] * FROM_RADS_TO_DEGS);
             roll = Math.round(orientation[2] * FROM_RADS_TO_DEGS);
+
         }
 
     }
+
+    @Override
+    public void onDestroy() {
+        super.onDestroy();
+        checkSensor = false;
+    }
+
+  /*  @Nullable
+    @Override
+    public IBinder onBind(Intent intent) {
+
+
+        return mBinder;
+    }
+
+    public class ServiceBinder extends Binder {
+        SensorService getService() {
+            return SensorService.this;
+        }
+    }
+
+    @Override
+    public int onStartCommand(Intent intent, int flags, int startId) {
+        super.onStartCommand(intent, flags, startId);
+
+        sensorManager = (SensorManager) getSystemService(SENSOR_SERVICE);
+        if (sensorManager != null) {
+            sensor = sensorManager.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR);
+            sensorEvtListener = new sensorEventListener();
+            sensorManager.registerListener(sensorEvtListener, sensor, SensorManager.SENSOR_DELAY_NORMAL);
+        }
+
+        realm = Realm.getDefaultInstance();
+        countSample =  realm.where(SensorSample.class).findAll().size();
+        Log.d("service", "size1 " + countSample);
+
+       *//* while (checkSensor) {
+            try {
+                Thread.sleep(3000);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+            getSample();
+        }*//*
+
+        Runnable runnable = new Runnable() {
+            @Override
+            public void run() {
+
+                while (checkSensor) {
+                    try {
+                        Thread.sleep(3000);
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                    }
+                    getSample();
+                }
+            }
+        };
+
+        runnable.run();
+
+
+        return START_STICKY;
+    }*/
 }
