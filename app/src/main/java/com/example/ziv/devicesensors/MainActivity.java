@@ -1,42 +1,35 @@
 package com.example.ziv.devicesensors;
 
-import android.content.ComponentName;
-import android.content.Context;
 import android.content.Intent;
-import android.content.ServiceConnection;
-import android.os.IBinder;
-import android.support.annotation.NonNull;
+import android.graphics.Color;
+import android.support.constraint.ConstraintLayout;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.util.Log;
-
-import java.util.Objects;
-
 import io.realm.Realm;
 import io.realm.Sort;
 
 public class MainActivity extends AppCompatActivity {
 
-    Realm realm;
     boolean checkSensor = true;
     Intent intent;
-    private SensorService sServ;
+    ConstraintLayout mainScreen;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+        mainScreen = (ConstraintLayout) this.findViewById(R.id.main_screen);
+        intent = new Intent(MainActivity.this, SensorService.class);
 
-        //changeBackground();
         ServiceThread s = new ServiceThread(intent);
-        new Thread(s).start();
+        s.start();
 
-        MainThread m = new MainThread(realm, checkSensor);
-        new Thread(m).start();
+        MainThread m = new MainThread(mainScreen);
+        m.start();
     }
 
-
-    class ServiceThread implements Runnable {
+    class ServiceThread extends Thread {
 
         Intent intent;
         ServiceThread(Intent intent) {
@@ -44,92 +37,66 @@ public class MainActivity extends AppCompatActivity {
         }
 
         public void run() {
-            Log.d("main", "ServiceThread");
-            //doBindService();
-            this.intent = new Intent(MainActivity.this, SensorService.class);
             startService(this.intent);
         }
     }
 
-    class MainThread implements Runnable {
+    class MainThread extends Thread {
 
-        Realm realm;
-        boolean checkSensor;
-        MainThread(Realm realm, boolean checkSensor) {
-            this.realm = realm;
-            this.checkSensor = checkSensor;
+        ConstraintLayout mainScreen;
+        MainThread(ConstraintLayout mainScreen) {
+            this.mainScreen =  mainScreen;
         }
 
         public void run() {
-            Log.d("main", "MainThread");
-            this.realm = Realm.getDefaultInstance();
-            changeBackground(this.realm, this.checkSensor);
+            changeBackground(this.mainScreen);
         }
     }
 
-    protected void changeBackground(Realm realm, boolean checkSensor)
+    protected void changeBackground(final ConstraintLayout mainScreen)
     {
+        Realm realm = Realm.getDefaultInstance();
         while(checkSensor)
         {
-            try {
-                Thread.sleep(1000);
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
-
             realm.beginTransaction();
-            SensorSample sensorSample = realm.where(SensorSample.class).sort("date", Sort.DESCENDING).findFirst();
+            final SensorSample sensorSample = realm.where(SensorSample.class).sort("date", Sort.DESCENDING).findFirst();
             realm.commitTransaction();
-            Log.d("main", "sensorSample to show " + Objects.requireNonNull(sensorSample).getId());
-            Log.d("main", "pitch: " + Objects.requireNonNull(sensorSample).getPitch());
-            if(sensorSample.getPitch() > 70 && sensorSample.getPitch() < 180)
-            {
-                Log.d("main", "Down");
-            }
-            else if(sensorSample.getPitch() > -60 && sensorSample.getPitch() < 70)
-            {
-                Log.d("main", "User");
-            }
-            else if(sensorSample.getPitch() > -180 && sensorSample.getPitch() < -60)
-            {
-                Log.d("main", "Down");
-            }
+            final int pitch = sensorSample != null ? sensorSample.getPitch() : 0;
+            Log.d("main", "pitch: " + pitch);
 
+            this.runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    paintScreen(mainScreen, pitch);
+                }
+            });
+        }
+    }
+
+    private void paintScreen(ConstraintLayout mainScreen, int pitch) {
+        if(pitch > 45 && pitch < 195)
+        {
+            Log.d("main", "Down");
+            mainScreen.setBackgroundColor(Color.RED);
+        }
+        else if(pitch > -45 && pitch < 45)
+        {
+            Log.d("main", "User");
+            mainScreen.setBackgroundColor(Color.GREEN);
+        }
+        else if(pitch > -195 && pitch < -45)
+        {
+            Log.d("main", "Up");
+            mainScreen.setBackgroundColor(Color.BLUE);
         }
     }
 
     @Override
-    protected void onStart() {
-        super.onStart();
-
-
-
-    }
-
-    @Override
-    protected void onStop() {
-        super.onStop();
+    protected void onDestroy() {
+        super.onDestroy();
         checkSensor = false;
     }
-
- /*   //music manager function
-    private ServiceConnection Scon =new ServiceConnection()
-    {
-        public void onServiceConnected(ComponentName name, IBinder
-                binder) {
-            sServ = ((SensorService.ServiceBinder)binder).getService();
-        }
-
-        public void onServiceDisconnected(ComponentName name) {
-            sServ = null;
-        }
-    };
-
-    void doBindService()
-    {
-        bindService(new Intent(this,SensorService.class),
-                Scon, Context.BIND_AUTO_CREATE);
-    }
-*/
 }
+
+
 

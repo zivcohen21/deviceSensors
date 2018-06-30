@@ -9,8 +9,7 @@ public class MyApplication extends Application {
     @Override
     public void onCreate() {
         super.onCreate();
-        // The default Realm file is "default.realm" in Context.getFilesDir();
-        // we'll change it to "myrealm.realm"
+
         Realm.init(this);
         RealmConfiguration config = new RealmConfiguration.Builder().build();
         Realm.setDefaultConfiguration(config);

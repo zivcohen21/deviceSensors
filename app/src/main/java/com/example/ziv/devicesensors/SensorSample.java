@@ -1,7 +1,5 @@
 package com.example.ziv.devicesensors;
 
-import android.util.Log;
-
 import java.util.Date;
 import java.util.UUID;
 
